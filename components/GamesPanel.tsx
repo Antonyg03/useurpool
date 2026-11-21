@@ -149,9 +149,11 @@ function StatTable({
           const c = lookup(id);
           return (
             <tr key={id}>
-              <td className="stat-champ">
-                <Portrait champ={c} small />
-                <span>{c?.name ?? id}</span>
+              <td>
+                <div className="stat-champ">
+                  <Portrait champ={c} small />
+                  <span>{c?.name ?? id}</span>
+                </div>
               </td>
               <td className="num muted">{s.games}</td>
               <td className={`num ${wrClass(s)}`}>{pct(s)}</td>
