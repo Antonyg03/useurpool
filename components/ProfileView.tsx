@@ -20,6 +20,9 @@ import {
   type Role,
 } from "@/lib/types";
 import { ChampionSearch } from "./ChampionSearch";
+import { GamesPanel } from "./GamesPanel";
+import { fetchGames, runImport, type GamesResponse } from "@/lib/gamesClient";
+import { champKey, counted, groupBy } from "@/lib/gameStats";
 import { PoolCard } from "./PoolCard";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
@@ -65,6 +68,60 @@ export function ProfileView() {
     window.addEventListener("pagehide", flush);
     return () => window.removeEventListener("pagehide", flush);
   }, [mode]);
+
+  // ---- Ranked games (phase 2) ----
+  const [gamesInfo, setGamesInfo] = useState<GamesResponse | null>(null);
+  const [importing, setImporting] = useState<string | null>(null);
+  const [importError, setImportError] = useState("");
+  const importSignal = useRef({ cancelled: false });
+
+  const doImport = useCallback(
+    async (mode: "full" | "new") => {
+      if (!region || !id) return;
+      setImportError("");
+      setImporting(mode === "full" ? "Importing your ranked games…" : "Checking for new games…");
+      const signal = { cancelled: false };
+      importSignal.current = signal;
+      try {
+        await runImport(
+          { gameName: id.gameName, tagLine: id.tagLine, region, accountType: requestedType },
+          mode,
+          (p) =>
+            setImporting(
+              p.waitingS
+                ? `Imported ${p.imported} games. Riot rate limit, continuing in ${p.waitingS}s…`
+                : `Imported ${p.imported} games…`,
+            ),
+          signal,
+        );
+        if (!signal.cancelled) setGamesInfo(await fetchGames(id.gameName, id.tagLine, region));
+      } catch (e) {
+        if (!signal.cancelled) setImportError(e instanceof Error ? e.message : "Import failed");
+      } finally {
+        if (!signal.cancelled) setImporting(null);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [params.region, params.riotId],
+  );
+
+  useEffect(() => {
+    if (!region || !id) return;
+    let cancelled = false;
+    fetchGames(id.gameName, id.tagLine, region)
+      .then((info) => {
+        if (cancelled) return;
+        setGamesInfo(info);
+        // Results come in automatically: check for new games on every visit.
+        if (info.available && info.linked) doImport("new");
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      importSignal.current.cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.region, params.riotId]);
 
   useEffect(() => {
     loadChampions()
@@ -119,6 +176,13 @@ export function ProfileView() {
   }, []);
 
   const champById = useMemo(() => new Map(champions.map((c) => [c.id, c])), [champions]);
+  const champByKey = useMemo(() => new Map(champions.map((c) => [champKey(c.id), c])), [champions]);
+  const lookup = useCallback((cid: string) => champByKey.get(champKey(cid)), [champByKey]);
+  const games = useMemo(() => gamesInfo?.games ?? [], [gamesInfo]);
+  const poolWr = useMemo(
+    () => groupBy(counted(games).filter((g) => g.role === role), (g) => champKey(g.championId)),
+    [games, role],
+  );
   const rolePool = useMemo(
     () => (profile?.pool ?? []).filter((e) => e.role === role).sort((a, b) => a.sortOrder - b.sortOrder),
     [profile, role],
@@ -269,6 +333,39 @@ export function ProfileView() {
         })}
       </div>
 
+      {gamesInfo && gamesInfo.reason !== "database" && (
+        <>
+          <div className="games-bar">
+            {gamesInfo.reason === "riot" ? (
+              <span className="muted small">Riot API key not set yet, so games can&apos;t be imported.</span>
+            ) : importing ? (
+              <span className="muted small">{importing}</span>
+            ) : gamesInfo.linked && games.length > 0 ? (
+              <>
+                <span className="muted small">{counted(games).length} ranked solo games imported</span>
+                <button className="btn btn-sm" onClick={() => doImport("new")}>
+                  Check for new games
+                </button>
+                <button className="btn btn-ghost btn-sm" onClick={() => doImport("full")} title="Fetches older games that are still missing">
+                  Re-scan history
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="btn btn-primary btn-sm" onClick={() => doImport("full")}>
+                  Import my ranked games
+                </button>
+                <span className="muted small">Loads your Ranked Solo history from Riot. Takes a few minutes.</span>
+              </>
+            )}
+            {importError && <span className="error">{importError}</span>}
+          </div>
+          {games.length > 0 && (
+            <GamesPanel role={role} games={games} champions={champions} lookup={lookup} />
+          )}
+        </>
+      )}
+
       <div className="row" style={{ marginBottom: 22, alignItems: "flex-start" }}>
         <div className="grow" style={{ maxWidth: 420 }}>
           <ChampionSearch
@@ -309,6 +406,7 @@ export function ProfileView() {
                     key={e.championId}
                     entry={e}
                     champ={champById.get(e.championId)}
+                    stat={poolWr.get(champKey(e.championId))}
                     accountType={profile.accountType}
                     onChange={(patch) => patchEntry(e.championId, patch)}
                     onRemove={() => removeEntry(e.championId)}

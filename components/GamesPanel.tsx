@@ -1,0 +1,176 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import type { Champion } from "@/lib/ddragon";
+import type { PlayerGame } from "@/lib/games";
+import { counted, groupBy, kda, pct, total, champKey, type WinStat } from "@/lib/gameStats";
+import { ROLE_LABELS, type Role } from "@/lib/types";
+import { ChampionSearch } from "./ChampionSearch";
+import { Portrait } from "./Portrait";
+
+const DAY = 24 * 60 * 60 * 1000;
+
+export function GamesPanel({
+  role,
+  games,
+  champions,
+  lookup,
+}: {
+  role: Role;
+  games: PlayerGame[];
+  champions: Champion[];
+  lookup: (id: string) => Champion | undefined;
+}) {
+  const [enemy, setEnemy] = useState<Champion | null>(null);
+
+  const roleGames = useMemo(() => counted(games).filter((g) => g.role === role), [games, role]);
+  const recent = useMemo(() => {
+    const since = Date.now() - 30 * DAY;
+    return roleGames.filter((g) => Date.parse(g.playedAt) >= since);
+  }, [roleGames]);
+
+  const recentTotal = total(recent);
+  const recentByChamp = sortByGames(groupBy(recent, (g) => champKey(g.championId)));
+
+  const hardest = useMemo(() => {
+    const byOpp = groupBy(roleGames, (g) => (g.opponentChampionId ? champKey(g.opponentChampionId) : null));
+    return [...byOpp.entries()]
+      .filter(([, s]) => s.games >= 2 && s.games - s.wins > s.wins)
+      .sort((a, b) => {
+        const netA = a[1].games - 2 * a[1].wins;
+        const netB = b[1].games - 2 * b[1].wins;
+        return netB - netA || a[1].wins / a[1].games - b[1].wins / b[1].games;
+      })
+      .slice(0, 5);
+  }, [roleGames]);
+
+  const vsEnemy = useMemo(() => {
+    if (!enemy) return [];
+    const k = champKey(enemy.id);
+    return sortByGames(
+      groupBy(
+        roleGames.filter((g) => g.opponentChampionId && champKey(g.opponentChampionId) === k),
+        (g) => champKey(g.championId),
+      ),
+    );
+  }, [enemy, roleGames]);
+  const vsEnemyTotal = enemy
+    ? total(roleGames.filter((g) => g.opponentChampionId && champKey(g.opponentChampionId) === champKey(enemy.id)))
+    : null;
+
+  if (roleGames.length === 0) {
+    return (
+      <p className="muted small" style={{ marginTop: 0 }}>
+        No ranked {ROLE_LABELS[role]} games imported yet.
+      </p>
+    );
+  }
+
+  return (
+    <div className="stats-grid">
+      <div className="card stat-card">
+        <div className="stat-head">
+          <h3>Last 30 days</h3>
+          <span className="muted small">
+            {recentTotal.games} games · <b className={wrClass(recentTotal)}>{pct(recentTotal)}</b>
+          </span>
+        </div>
+        {recentByChamp.length === 0 ? (
+          <p className="muted small">No {ROLE_LABELS[role]} games in the last 30 days.</p>
+        ) : (
+          <StatTable rows={recentByChamp} lookup={lookup} showKda />
+        )}
+      </div>
+
+      <div className="card stat-card">
+        <div className="stat-head">
+          <h3>Your matchups</h3>
+          <span className="muted small">all imported games</span>
+        </div>
+        <ChampionSearch
+          champions={champions}
+          inPool={new Set()}
+          onPick={setEnemy}
+          placeholder="Enemy laner…"
+        />
+        {enemy ? (
+          <div style={{ marginTop: 12 }}>
+            <div className="row" style={{ gap: 8, marginBottom: 8 }}>
+              <span className="muted small">vs</span>
+              <Portrait champ={enemy} small />
+              <b>{enemy.name}</b>
+              {vsEnemyTotal && vsEnemyTotal.games > 0 && (
+                <span className="muted small">
+                  {vsEnemyTotal.games} games · <b className={wrClass(vsEnemyTotal)}>{pct(vsEnemyTotal)}</b>
+                </span>
+              )}
+              <button className="btn btn-ghost btn-sm" onClick={() => setEnemy(null)}>
+                ✕
+              </button>
+            </div>
+            {vsEnemy.length === 0 ? (
+              <p className="muted small">No games against {enemy.name} yet.</p>
+            ) : (
+              <StatTable rows={vsEnemy} lookup={lookup} />
+            )}
+          </div>
+        ) : (
+          <div style={{ marginTop: 12 }}>
+            <div className="muted small" style={{ marginBottom: 6 }}>
+              Lane opponents you lose to most
+            </div>
+            {hardest.length === 0 ? (
+              <p className="muted small">Nothing stands out yet.</p>
+            ) : (
+              <StatTable rows={hardest} lookup={lookup} netLosses />
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatTable({
+  rows,
+  lookup,
+  showKda,
+  netLosses,
+}: {
+  rows: [string, WinStat][];
+  lookup: (id: string) => Champion | undefined;
+  showKda?: boolean;
+  netLosses?: boolean;
+}) {
+  return (
+    <table className="stat-table">
+      <tbody>
+        {rows.map(([id, s]) => {
+          const c = lookup(id);
+          return (
+            <tr key={id}>
+              <td className="stat-champ">
+                <Portrait champ={c} small />
+                <span>{c?.name ?? id}</span>
+              </td>
+              <td className="num muted">{s.games}</td>
+              <td className={`num ${wrClass(s)}`}>{pct(s)}</td>
+              {showKda && <td className="num muted">{kda(s)} KDA</td>}
+              {netLosses && <td className="num wr-bad">−{s.games - 2 * s.wins}</td>}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+function sortByGames(m: Map<string, WinStat>): [string, WinStat][] {
+  return [...m.entries()].sort((a, b) => b[1].games - a[1].games || b[1].wins - a[1].wins);
+}
+
+export function wrClass(s: WinStat): string {
+  if (s.games < 3) return "";
+  const wr = s.wins / s.games;
+  return wr >= 0.55 ? "wr-good" : wr < 0.45 ? "wr-bad" : "";
+}

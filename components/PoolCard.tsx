@@ -11,6 +11,8 @@ import {
   type PracticeNeed,
 } from "@/lib/types";
 import { Portrait } from "./Portrait";
+import { pct, type WinStat } from "@/lib/gameStats";
+import { wrClass } from "./GamesPanel";
 
 export function PoolCard({
   entry,
@@ -18,7 +20,9 @@ export function PoolCard({
   accountType,
   onChange,
   onRemove,
+  stat,
 }: {
+  stat?: WinStat;
   entry: PoolEntry;
   champ: Champion | undefined;
   accountType: AccountType;
@@ -39,7 +43,14 @@ export function PoolCard({
       <div className="champ-top">
         <Portrait champ={champ} tier={entry.tier} />
         <div className="grow">
-          <div className="champ-name">{champ?.name ?? entry.championId}</div>
+          <div className="champ-name">
+            {champ?.name ?? entry.championId}{" "}
+            {stat && stat.games > 0 && (
+              <span className="champ-wr" title="Your ranked winrate on this champion in this role">
+                (<span className={wrClass(stat)}>{pct(stat)}</span> · {stat.games})
+              </span>
+            )}
+          </div>
           <div className="row" style={{ gap: 6, marginTop: 4 }}>
             {accountType === "main" && entry.situational && (
               <span className="badge badge-sit">situational</span>

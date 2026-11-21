@@ -9,11 +9,16 @@
   - `situational` + `note` → e.g. "Jax: A vs Camille, otherwise B"
   - `practice_need` → training account list (high / medium / some / almost_done)
 
+## Phase 2 (live)
+
+- **player_games**: one compact row per (puuid, match) for Ranked Solo (queue 420): date, duration,
+  patch, role, champion, lane opponent (same `teamPosition` on the enemy team), win, remake, K/D/A, CS, gold.
+- `players.last_import_at` records the last import.
+
 ## Later phases (planned)
 
 | Table | Phase | Purpose |
 |---|---|---|
-| `matches`, `match_participants` | 2 | Own games via Riot API (match-v5), incl. old games import |
 | `matchup_notes` | 2–4 | Own notes per (player, role, my champ, enemy champ) |
 | `collected_games` | 2+ | Compact rows from the Master+ collector (EUW + KR, GitHub Actions) |
 | `matchup_stats` | 3 | Aggregates per patch / region / role / champ vs champ, incl. gold@3, lane FB, winrate by game length |
