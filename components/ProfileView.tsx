@@ -21,6 +21,7 @@ import {
 } from "@/lib/types";
 import { ChampionSearch } from "./ChampionSearch";
 import { GamesPanel } from "./GamesPanel";
+import { PatchWarnings } from "./PatchWarnings";
 import { fetchGames, runImport, type GamesResponse } from "@/lib/gamesClient";
 import { champKey, counted, groupBy } from "@/lib/gameStats";
 import { PoolCard } from "./PoolCard";
@@ -303,6 +304,13 @@ export function ProfileView() {
           >
             Champ select →
           </Link>
+          <Link
+            href={`${profilePath(profile.region, profile)}/tiers`}
+            className="btn"
+            style={{ display: "inline-block", textDecoration: "none", marginBottom: 10, marginRight: 8 }}
+          >
+            Tier list
+          </Link>
           <div className="segmented" style={{ marginBottom: 6 }}>
             <button className={!isTraining ? "active" : ""} onClick={() => setAccountType("main")}>
               Main
@@ -371,6 +379,10 @@ export function ProfileView() {
             <GamesPanel role={role} games={games} champions={champions} lookup={lookup} />
           )}
         </>
+      )}
+
+      {mode === "cloud" && (
+        <PatchWarnings role={role} champIds={rolePool.map((e) => e.championId)} lookup={lookup} />
       )}
 
       <div className="row" style={{ marginBottom: 22, alignItems: "flex-start" }}>

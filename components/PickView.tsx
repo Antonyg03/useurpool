@@ -32,6 +32,8 @@ import {
 import { ChampionSearch } from "./ChampionSearch";
 import { Portrait } from "./Portrait";
 import { wrClass } from "./GamesPanel";
+import { PatchWarnings } from "./PatchWarnings";
+import { ProColumn } from "./ProColumn";
 
 type StatRegion = "euw1" | "kr" | "all";
 type Mode = "blind" | "last";
@@ -176,6 +178,8 @@ export function PickView() {
           run for a while. Your own stats work already.
         </div>
       )}
+
+      <PatchWarnings role={role} champIds={pool.map((e) => e.championId)} lookup={lookup} />
 
       <QueueUp roleGames={roleGames} pool={pool} lookup={lookup} ownByChamp={ownByChamp} overall={overall} />
 
@@ -433,7 +437,7 @@ function LastPick({
   const router = useRouter();
   const matchupHref = (cid: string) =>
     `${base}/m/${role}/${encodeURIComponent(cid)}/${encodeURIComponent(enemy.id)}`;
-  const ranked = useMemo(() => rankMatchups(vs?.vsEnemy ?? [], vs?.enemyGames ?? 0), [vs]);
+  const ranked = useMemo(() => rankMatchups(vs?.vsEnemy ?? [], vs?.enemyGames ?? 0, vs?.otpVsEnemy ?? []), [vs]);
 
   const vsGames = roleGames.filter(
     (g) => g.opponentChampionId && champKey(g.opponentChampionId) === champKey(enemy.id),
@@ -500,7 +504,8 @@ function LastPick({
                     {isTraining && <span>Practice: {PRACTICE_LABELS[e.practiceNeed ?? "medium"]} · </span>}
                     {m && m.agg.games > 0 ? (
                       <>
-                        Master+ {pctNum(m.wr)} in {m.agg.games} games
+                        Solo Q {pctNum(m.wr)} in {m.agg.games} games
+                        {m.otp && m.otp.games > 0 && ` (one-tricks: ${pctNum(m.otp.wins / m.otp.games)} in ${m.otp.games})`}
                         {m.agg.games < LOW_SAMPLE && <span className="warn"> · few games</span>}
                       </>
                     ) : vs ? (
@@ -549,7 +554,7 @@ function LastPick({
         <div className="stat-head">
           <h3>Solo Queue</h3>
           <span className="muted small">
-            Master+ · {enemyGames} {enemy.name} games
+            80% Master+ · 20% one-tricks · {enemyGames} {enemy.name} games
           </span>
         </div>
         <input
@@ -624,14 +629,13 @@ function LastPick({
         )}
       </div>
 
-      <div className="card stat-card">
-        <div className="stat-head">
-          <h3>Pro Play</h3>
-        </div>
-        <p className="muted small" style={{ margin: 0 }}>
-          Coming in a later update (LCK, LPL, LEC, LCS · last 10 patches).
-        </p>
-      </div>
+      <ProColumn
+        role={role}
+        enemy={enemy}
+        lookup={lookup}
+        poolIds={new Set(pool.map((e) => champKey(e.championId)))}
+        onOpen={(cid) => router.push(matchupHref(cid))}
+      />
     </div>
   );
 }

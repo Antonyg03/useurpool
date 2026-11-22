@@ -16,4 +16,6 @@ export interface StatsResponse {
   vsEnemy: ChampAgg[] | null;
   /** How many games the enemy champion has in this role (for pick share). */
   enemyGames: number;
+  /** Same as vsEnemy, but only games played by one-tricks (null without enemy / no data). */
+  otpVsEnemy?: { championId: string; games: number; wins: number }[] | null;
 }

@@ -15,6 +15,9 @@ Pick the best champion from **your own pool** against the enemy laner (League of
 - **Phase 4**: matchup page (from champ select → click a pool champion): your notes, level-1
   verdict from gold/XP at 3:00 and lane first blood, power-spike traffic light by game length,
   lane tips (data + drafts), runes/items/skill order with win rates, feedback.
+- **Extras**: Pro Play column (Leaguepedia: LCK, LPL, LEC, LCS; last 10 patches, newer weighted
+  more, reset table for reworks), one-tricks as 20% of the Solo Queue column (mastery-based) plus
+  hand-collected OTP statements, patch warnings for pool champions, automatic tier list.
 - Next: pick phase · Phase 4: matchup view · Phase 5: extras.
 
 ## Stack
@@ -32,7 +35,8 @@ Next.js (App Router) on Vercel · Supabase (Postgres) · Champion data from Riot
 3. Redeploy.
 4. Collector: GitHub → repo → Settings → Secrets and variables → Actions → add
    `RIOT_API_KEY`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`. Run SQL `supabase/003_collector.sql` and `supabase/004_matchup_details.sql`.
-   The workflow `.github/workflows/collector.yml` runs hourly (or manually via Actions → Collector → Run workflow).
+   Run `supabase/005_pro_otp.sql` too.
+   The workflow `.github/workflows/collector.yml` runs hourly; `.github/workflows/pro.yml` imports pro games daily (or manually via Actions → Collector → Run workflow).
 
 Without the Supabase variables the site still works and saves to the browser's localStorage.
 

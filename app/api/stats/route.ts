@@ -68,7 +68,19 @@ export async function GET(req: NextRequest) {
       enemyGames =
         champions.find((c) => c.championId.toLowerCase() === enemy.toLowerCase())?.games ?? 0;
     }
-    const body: StatsResponse = { patches, champions, vsEnemy, enemyGames };
+    let otpVsEnemy: StatsResponse["otpVsEnemy"] = null;
+    if (enemy) {
+      // One-trick games (table from 005_pro_otp.sql; missing table = no OTP data).
+      const { data: oRows, error: oe } = await db
+        .from("otp_matchup_stats")
+        .select("champion_id, games, wins")
+        .eq("role", role)
+        .ilike("opponent_id", enemy)
+        .in("region", regions)
+        .in("patch", patches);
+      if (!oe) otpVsEnemy = sum(oRows ?? []).map(({ championId, games, wins }) => ({ championId, games, wins }));
+    }
+    const body: StatsResponse = { patches, champions, vsEnemy, enemyGames, otpVsEnemy };
     return NextResponse.json(body, { headers: { "cache-control": "s-maxage=300" } });
   } catch (e) {
     console.error("[api/stats]", e);

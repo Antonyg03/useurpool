@@ -184,7 +184,7 @@ h2 { font-size: 18px; margin: 0 0 12px; }
 .champ-wr { font-size: 12px; color: var(--muted); white-space: nowrap; }
 
 /* Champ select */
-.pick-grid { display: grid; grid-template-columns: 1.15fr 1fr 0.55fr; gap: 14px; align-items: start; }
+.pick-grid { display: grid; grid-template-columns: 1.1fr 1fr 0.75fr; gap: 14px; align-items: start; }
 @media (max-width: 1000px) { .pick-grid { grid-template-columns: 1fr; } }
 .col-title { font-weight: 700; margin-bottom: 10px; }
 .pick-list { display: flex; flex-direction: column; gap: 8px; }
@@ -234,3 +234,14 @@ h2 { font-size: 18px; margin: 0 0 12px; }
 .pick-row:hover { border-color: #33405a; }
 .click-row { cursor: pointer; }
 .click-row:hover td { background: rgba(255, 255, 255, 0.04); }
+.patch-warn { border-style: solid; border-color: #5a4a1a; color: var(--text); }
+.tier-row { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--border); }
+.tier-letter { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 20px; flex-shrink: 0; }
+.tl-S { background: linear-gradient(135deg, #ff4d4d, #ffd84d, #4dff88, #4dd2ff, #8a4dff); color: #111; }
+.tl-A { background: #22c55e; color: #052e14; }
+.tl-B { background: #84cc16; color: #1a2e05; }
+.tl-C { background: #f59e0b; color: #2e1a05; }
+.tl-D { background: #ef4444; color: #fff; }
+.tier-champs { display: flex; flex-wrap: wrap; gap: 8px; }
+.tier-champ { display: flex; flex-direction: column; align-items: center; width: 64px; font-size: 11px; text-align: center; }
+.tier-champ.mine .portrait { box-shadow: 0 0 0 2px var(--accent); }

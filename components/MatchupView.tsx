@@ -13,6 +13,8 @@ import { draftTips } from "@/lib/laneTips";
 import { LOW_SAMPLE } from "@/lib/matchupTiers";
 import { ROLES, ROLE_LABELS, type Role } from "@/lib/types";
 import { Portrait } from "./Portrait";
+import { OtpNotes } from "./OtpNotes";
+import type { ProResponse } from "@/lib/proStats";
 import { wrClass } from "./GamesPanel";
 
 type StatRegion = "euw1" | "kr" | "all";
@@ -37,6 +39,7 @@ export function MatchupView() {
   const [error, setError] = useState("");
   const [games, setGames] = useState<PlayerGame[]>([]);
   const [statRegion, setStatRegion] = useState<StatRegion>("all");
+  const [pro, setPro] = useState<ProResponse | null>(null);
 
   useEffect(() => {
     loadChampions().then(setChampions).catch(() => {});
@@ -55,6 +58,14 @@ export function MatchupView() {
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.region, params.riotId]);
+
+  useEffect(() => {
+    if (!role) return;
+    fetch(`/api/pro?${new URLSearchParams({ role, enemy: enemyId })}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setPro)
+      .catch(() => {});
+  }, [role, enemyId]);
 
   useEffect(() => {
     if (!role) return;
@@ -124,6 +135,10 @@ export function MatchupView() {
               )}
               {data?.patches.length ? ` · patches ${data.patches.join(", ")}` : ""}
               {" · "}You: {mine.games ? `${pct(mine)} in ${mine.games}` : "no games"}
+              {(() => {
+                const p = pro?.rows.find((r) => champKey(r.championId) === champKey(champId));
+                return p ? ` · Pro: ${Math.round((p.wWins / p.wGames) * 100)}% in ${p.games}` : "";
+              })()}
             </div>
           </div>
           <Portrait champ={enemy} />
@@ -155,6 +170,8 @@ export function MatchupView() {
       </div>
 
       <LaneTips data={data} champId={champId} enemyId={enemyId} champName={champName} enemyName={enemyName} />
+
+      <OtpNotes role={role} champ={champId} enemy={enemyId} champName={champName} />
 
       <Builds data={data} items={items} runes={runes} />
 

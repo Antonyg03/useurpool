@@ -154,6 +154,7 @@ let pendingMatches = [];
 let pendingRows = [];
 let pendingEarly = [];
 let pendingBuilds = [];
+let pendingOtp = [];
 let added = 0;
 let timelines = 0;
 let warnedOldDb = false;
@@ -166,6 +167,7 @@ async function flush() {
       rows: pendingRows,
       early: pendingEarly,
       builds: pendingBuilds,
+      otp: pendingOtp,
     });
   } catch (e) {
     // Database not upgraded to phase 4 yet (004_matchup_details.sql): keep collecting the basics.
@@ -179,6 +181,7 @@ async function flush() {
   pendingRows = [];
   pendingEarly = [];
   pendingBuilds = [];
+  pendingOtp = [];
 }
 
 async function loadItemInfo() {
@@ -195,6 +198,72 @@ async function loadItemInfo() {
   }
 }
 
+// ---- One-tricks ------------------------------------------------------------
+// A ladder player is a one-trick (OTP) when their most played champion has at
+// least 3x the mastery points of the second one (and 300k+ points).
+// Mastery uses the platform host, so these calls don't slow down match fetching.
+const otpChamp = new Map(); // puuid -> champion id (only OTPs)
+const checkedAt = new Map(); // puuid -> ms
+let champByKey = new Map();
+
+async function loadChampKeys() {
+  const ddragon = process.env.DDRAGON_BASE ?? "https://ddragon.leagueoflegends.com";
+  try {
+    const versions = await fetch(`${ddragon}/api/versions.json`).then((r) => r.json());
+    const data = await fetch(`${ddragon}/cdn/${versions[0]}/data/en_US/champion.json`).then((r) => r.json());
+    champByKey = new Map(Object.values(data.data).map((c) => [Number(c.key), c.id]));
+  } catch (e) {
+    console.log("Could not load champion keys, skipping OTP detection", e.message);
+  }
+}
+
+async function loadOtpPlayers() {
+  for (let offset = 0; ; offset += 1000) {
+    let rows;
+    try {
+      rows = await sb("GET", `otp_players?select=puuid,champion_id,is_otp,checked_at&region=eq.${REGION}&order=puuid&limit=1000&offset=${offset}`);
+    } catch (e) {
+      console.log("OTP table missing (run supabase/005_pro_otp.sql), skipping OTPs");
+      return false;
+    }
+    for (const r of rows) {
+      checkedAt.set(r.puuid, Date.parse(r.checked_at));
+      if (r.is_otp && r.champion_id) otpChamp.set(r.puuid, r.champion_id);
+    }
+    if (rows.length < 1000) break;
+  }
+  console.log(`OTPs known in ${REGION}: ${otpChamp.size} (${checkedAt.size} players checked)`);
+  return true;
+}
+
+/** Background loop: refresh mastery of ladder players not checked in 7 days. */
+async function refreshOtps(puuids, stop) {
+  if (!champByKey.size) return;
+  const stale = puuids.filter((p) => !checkedAt.has(p) || Date.now() - checkedAt.get(p) > 7 * 86400_000);
+  let n = 0;
+  let batch = [];
+  for (const puuid of stale) {
+    if (stop.done || timeLeft() < 90_000) break;
+    const top = await riot("platform", `/lol/champion-mastery/v4/champion-masteries/by-puuid/${encodeURIComponent(puuid)}/top?count=2`);
+    if (!top) continue;
+    const first = top[0]?.championPoints ?? 0;
+    const second = top[1]?.championPoints ?? 0;
+    const champion_id = champByKey.get(top[0]?.championId) ?? null;
+    const is_otp = Boolean(champion_id) && first >= 300_000 && first >= 3 * Math.max(second, 1);
+    if (is_otp) otpChamp.set(puuid, champion_id);
+    else otpChamp.delete(puuid);
+    checkedAt.set(puuid, Date.now());
+    batch.push({ puuid, region: REGION, champion_id, top_points: first, second_points: second, is_otp, checked_at: new Date().toISOString() });
+    n++;
+    if (batch.length >= 50) {
+      await sb("POST", "otp_players?on_conflict=puuid", batch, { Prefer: "resolution=merge-duplicates" });
+      batch = [];
+    }
+  }
+  if (batch.length) await sb("POST", "otp_players?on_conflict=puuid", batch, { Prefer: "resolution=merge-duplicates" });
+  console.log(`Mastery checked for ${n} players, ${otpChamp.size} OTPs known`);
+}
+
 function saveCursor(cursor) {
   return sb("POST", "collector_state?on_conflict=region", { region: REGION, cursor, updated_at: new Date().toISOString() }, {
     Prefer: "resolution=merge-duplicates",
@@ -204,8 +273,14 @@ function saveCursor(cursor) {
 async function main() {
   console.log(`Collector ${REGION}: budget ${MAX_MS / 60000} min, games from last ${DAYS} days`);
   const itemInfo = await loadItemInfo();
+  await loadChampKeys();
+  const otpEnabled = await loadOtpPlayers();
   const puuids = await ladderPuuids();
   if (!puuids.length) return;
+  const stopOtp = { done: false };
+  const otpTask = otpEnabled
+    ? refreshOtps(puuids, stopOtp).catch((e) => console.log("OTP refresh failed:", e.message))
+    : Promise.resolve();
 
   const state = await sb("GET", `collector_state?select=cursor&region=eq.${REGION}`);
   let cursor = (state[0]?.cursor ?? 0) % puuids.length;
@@ -240,12 +315,17 @@ async function main() {
       pendingRows.push(...rows);
       pendingEarly.push(...details.early);
       pendingBuilds.push(...details.builds);
+      m.info.participants.forEach((p, i) => {
+        if (otpChamp.get(p.puuid) === rows[i].champion_id) pendingOtp.push(rows[i]);
+      });
       if (pendingMatches.length >= 25) await flush();
     }
     if (scanned % 100 === 0) await saveCursor(cursor);
     if (scanned % 25 === 0) console.log(`  ${scanned} players scanned, ${added} new games (${timelines} timelines), ${riotCalls} API calls`);
   }
   await flush();
+  stopOtp.done = true;
+  await otpTask;
 
   await saveCursor(cursor);
   const cutoff = new Date(Date.now() - 14 * 86400_000).toISOString();
