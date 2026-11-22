@@ -9,7 +9,10 @@ Pick the best champion from **your own pool** against the enemy laner (League of
 - **Phase 2**: own Ranked Solo games via Riot API (account-v1 + match-v5), batched import with
   rate-limit handling, auto-check for new games on every visit, last-30-days stats per champion,
   own winrate per lane matchup, "opponents you lose to most".
-- Phase 3: pick phase · Phase 4: matchup view · Phase 5: extras.
+- **Phase 3**: Master+ collector for EUW + KR (GitHub Actions, hourly) feeding aggregated
+  matchup tables; champ select page with ban suggestion, blind pick notes and last pick
+  (pool sorted by relative matchup tier, Solo Queue column with pick/win rate, region filter).
+- Next: pick phase · Phase 4: matchup view · Phase 5: extras.
 
 ## Stack
 
@@ -24,6 +27,9 @@ Next.js (App Router) on Vercel · Supabase (Postgres) · Champion data from Riot
    - `SUPABASE_SECRET_KEY` = Supabase **secret** key (server only, never commit it)
    - `RIOT_API_KEY` = Riot API key (server only)
 3. Redeploy.
+4. Collector: GitHub → repo → Settings → Secrets and variables → Actions → add
+   `RIOT_API_KEY`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`. Run SQL `supabase/003_collector.sql`.
+   The workflow `.github/workflows/collector.yml` runs hourly (or manually via Actions → Collector → Run workflow).
 
 Without the Supabase variables the site still works and saves to the browser's localStorage.
 

@@ -10,7 +10,7 @@ import {
   RiotError,
   type RiotMatch,
 } from "@/lib/riotApi";
-import { patchOf, positionToRole } from "@/lib/games";
+import { normalizeChampion, patchOf, positionToRole } from "@/lib/games";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -149,8 +149,8 @@ function toRow(m: RiotMatch, puuid: string) {
     duration_s: m.info.gameDuration,
     patch: patchOf(m.info.gameVersion),
     role: positionToRole(me.teamPosition),
-    champion_id: me.championName,
-    opponent_champion_id: opp?.championName ?? null,
+    champion_id: normalizeChampion(me.championName),
+    opponent_champion_id: opp ? normalizeChampion(opp.championName) : null,
     win: me.win,
     remake,
     kills: me.kills,

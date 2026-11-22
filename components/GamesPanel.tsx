@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { Champion } from "@/lib/ddragon";
 import type { PlayerGame } from "@/lib/games";
-import { counted, groupBy, kda, pct, total, champKey, type WinStat } from "@/lib/gameStats";
+import { counted, groupBy, hardestOpponents, kda, pct, total, champKey, type WinStat } from "@/lib/gameStats";
 import { ROLE_LABELS, type Role } from "@/lib/types";
 import { ChampionSearch } from "./ChampionSearch";
 import { Portrait } from "./Portrait";
@@ -32,17 +32,7 @@ export function GamesPanel({
   const recentTotal = total(recent);
   const recentByChamp = sortByGames(groupBy(recent, (g) => champKey(g.championId)));
 
-  const hardest = useMemo(() => {
-    const byOpp = groupBy(roleGames, (g) => (g.opponentChampionId ? champKey(g.opponentChampionId) : null));
-    return [...byOpp.entries()]
-      .filter(([, s]) => s.games >= 2 && s.games - s.wins > s.wins)
-      .sort((a, b) => {
-        const netA = a[1].games - 2 * a[1].wins;
-        const netB = b[1].games - 2 * b[1].wins;
-        return netB - netA || a[1].wins / a[1].games - b[1].wins / b[1].games;
-      })
-      .slice(0, 5);
-  }, [roleGames]);
+  const hardest = useMemo(() => hardestOpponents(roleGames), [roleGames]);
 
   const vsEnemy = useMemo(() => {
     if (!enemy) return [];

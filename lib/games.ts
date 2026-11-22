@@ -33,3 +33,9 @@ export function positionToRole(pos: string | undefined): Role | null {
 export function patchOf(gameVersion: string): string {
   return gameVersion.split(".").slice(0, 2).join(".");
 }
+
+/** match-v5 championName differs from Data Dragon ids in a few cases. */
+const FIX_NAMES: Record<string, string> = { FiddleSticks: "Fiddlesticks" };
+export function normalizeChampion(name: string): string {
+  return FIX_NAMES[name] ?? name;
+}

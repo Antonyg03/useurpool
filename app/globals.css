@@ -182,3 +182,30 @@ h2 { font-size: 18px; margin: 0 0 12px; }
 .wr-good { color: #4ade80; }
 .wr-bad { color: #f87171; }
 .champ-wr { font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+/* Champ select */
+.pick-grid { display: grid; grid-template-columns: 1.15fr 1fr 0.55fr; gap: 14px; align-items: start; }
+@media (max-width: 1000px) { .pick-grid { grid-template-columns: 1fr; } }
+.col-title { font-weight: 700; margin-bottom: 10px; }
+.pick-list { display: flex; flex-direction: column; gap: 8px; }
+.pick-row {
+  display: flex; gap: 10px; align-items: center; padding: 10px 12px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+}
+.mtier {
+  font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; min-width: 62px; text-align: center;
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.mtier-great { background: #14532d; color: #86efac; }
+.mtier-good { background: #1a3a1a; color: #bef264; }
+.mtier-even { background: #262a33; color: #d4d4d8; }
+.mtier-hard { background: #4a2a12; color: #fdba74; }
+.mtier-avoid { background: #4c1515; color: #fca5a5; }
+.mtier-unknown { background: transparent; color: var(--muted); border: 1px dashed var(--border); }
+.warn { color: #fbbf24; }
+.note-line { font-style: italic; margin-top: 2px; }
+.in-pool-row td { background: rgba(45, 212, 191, 0.07); }
+.pick-card { cursor: pointer; text-align: left; font: inherit; color: inherit; }
+.pick-card:hover { border-color: var(--accent); }
+.pick-card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.stat-table thead td { border-top: none; padding-bottom: 2px; }

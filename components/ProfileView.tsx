@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { loadChampions, type Champion } from "@/lib/ddragon";
-import { fromSlug, regionFromUrl } from "@/lib/riotId";
+import { fromSlug, profilePath, regionFromUrl } from "@/lib/riotId";
 import { loadProfile, rememberRecent, saveLocal, saveProfile, type StorageMode } from "@/lib/store";
 import { presetFor } from "@/lib/presets";
 import {
@@ -296,6 +296,13 @@ export function ProfileView() {
           </p>
         </div>
         <div style={{ textAlign: "right" }}>
+          <Link
+            href={`${profilePath(profile.region, profile)}/pick`}
+            className="btn btn-primary"
+            style={{ display: "inline-block", textDecoration: "none", marginBottom: 10, marginRight: 8 }}
+          >
+            Champ select →
+          </Link>
           <div className="segmented" style={{ marginBottom: 6 }}>
             <button className={!isTraining ? "active" : ""} onClick={() => setAccountType("main")}>
               Main

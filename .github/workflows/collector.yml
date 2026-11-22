@@ -1,0 +1,40 @@
+name: Collector
+
+# Samples Master+ Ranked Solo games (EUW + KR) into Supabase.
+# Needs repository secrets: RIOT_API_KEY, SUPABASE_URL, SUPABASE_SECRET_KEY.
+on:
+  schedule:
+    - cron: "17 * * * *" # every hour
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: "Time budget per region (minutes)"
+        default: "45"
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        region: [euw1, kr]
+    concurrency:
+      group: collector-${{ matrix.region }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Collect ${{ matrix.region }}
+        run: node collector/collect.mjs
+        env:
+          REGION: ${{ matrix.region }}
+          MAX_MINUTES: ${{ github.event.inputs.minutes || '45' }}
+          RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}

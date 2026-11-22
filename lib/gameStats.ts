@@ -61,3 +61,19 @@ export function total(games: PlayerGame[]): WinStat {
 export function champKey(id: string): string {
   return id.toLowerCase();
 }
+
+/**
+ * Lane opponents you lose to most: net losses first, then worst winrate.
+ * Used for "Lane opponents you lose to most" and the ban suggestion.
+ */
+export function hardestOpponents(roleGames: PlayerGame[], n = 5, minGames = 2): [string, WinStat][] {
+  const byOpp = groupBy(roleGames, (g) => (g.opponentChampionId ? champKey(g.opponentChampionId) : null));
+  return [...byOpp.entries()]
+    .filter(([, s]) => s.games >= minGames && s.games - s.wins > s.wins)
+    .sort((a, b) => {
+      const netA = a[1].games - 2 * a[1].wins;
+      const netB = b[1].games - 2 * b[1].wins;
+      return netB - netA || a[1].wins / a[1].games - b[1].wins / b[1].games;
+    })
+    .slice(0, n);
+}
