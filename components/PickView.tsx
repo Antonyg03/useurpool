@@ -14,6 +14,7 @@ import {
   LOW_SAMPLE,
   MATCHUP_TIER_LABELS,
   MATCHUP_TIER_ORDER,
+  minGamesFor,
   rankMatchups,
   smoothedWr,
   type RankedMatchup,
@@ -422,6 +423,7 @@ function LastPick({
 }) {
   const [filter, setFilter] = useState("");
   const [showAll, setShowAll] = useState(false);
+  const [showRare, setShowRare] = useState(false);
   const ranked = useMemo(() => rankMatchups(vs?.vsEnemy ?? [], vs?.enemyGames ?? 0), [vs]);
 
   const vsGames = roleGames.filter(
@@ -449,8 +451,12 @@ function LastPick({
     );
   });
 
-  const soloRows = [...ranked.values()]
-    .filter((r) => r.agg.games > 0)
+  const minGames = minGamesFor(vs?.enemyGames ?? 0);
+  const allSolo = [...ranked.values()].filter((r) => r.agg.games > 0);
+  const rareCount = allSolo.filter((r) => r.agg.games < minGames).length;
+  // Rare picks (often off-role one-offs) are hidden unless asked for or searched.
+  const soloRows = allSolo
+    .filter((r) => showRare || filter || r.agg.games >= minGames)
     .sort((a, b) => b.smoothed - a.smoothed);
   const filterIds = filter ? new Set(searchChampions(champions, filter, 200).map((c) => champKey(c.id))) : null;
   const shownSolo = soloRows.filter((r) => !filterIds || filterIds.has(champKey(r.agg.championId)));
@@ -540,7 +546,7 @@ function LastPick({
         />
         {!vs ? (
           <p className="muted small">Loading…</p>
-        ) : shownSolo.length === 0 ? (
+        ) : shownSolo.length === 0 && rareCount === 0 ? (
           <p className="muted small">No Master+ games for this matchup yet.</p>
         ) : (
           <>
@@ -579,6 +585,11 @@ function LastPick({
             {!filter && shownSolo.length > 20 && (
               <button className="btn btn-ghost btn-sm" onClick={() => setShowAll((s) => !s)}>
                 {showAll ? "Show less" : `Show all ${shownSolo.length}`}
+              </button>
+            )}
+            {rareCount > 0 && !filter && (
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowRare((s) => !s)}>
+                {showRare ? "Hide rare picks" : `Show ${rareCount} rare picks (< ${minGames} games)`}
               </button>
             )}
             <p className="muted small" style={{ marginBottom: 0 }}>

@@ -2,11 +2,11 @@
 // them to the aggregated matchup tables in Supabase. Runs in GitHub Actions.
 //
 // Env: RIOT_API_KEY, SUPABASE_URL, SUPABASE_SECRET_KEY, REGION (euw1|kr),
-//      MAX_MINUTES (default 45), DAYS (default 3)
+//      MAX_MINUTES (default 330), DAYS (default 3)
 // Optional (tests): RIOT_PLATFORM_BASE, RIOT_REGIONAL_BASE
 
 const REGION = process.env.REGION ?? "euw1";
-const MAX_MS = Number(process.env.MAX_MINUTES ?? 45) * 60_000;
+const MAX_MS = Number(process.env.MAX_MINUTES ?? 330) * 60_000;
 const DAYS = Number(process.env.DAYS ?? 3);
 const RIOT_KEY = need("RIOT_API_KEY");
 const SB_URL = need("SUPABASE_URL").replace(/\/$/, "");
@@ -55,8 +55,8 @@ class Limiter {
   }
 }
 const limiters = {
-  platform: new Limiter([[15, 1000], [70, 120_000]]),
-  regional: new Limiter([[15, 1000], [70, 120_000]]),
+  platform: new Limiter([[15, 1000], [85, 120_000]]),
+  regional: new Limiter([[15, 1000], [85, 120_000]]),
 };
 
 let riotCalls = 0;
@@ -157,6 +157,12 @@ async function flush() {
   pendingRows = [];
 }
 
+function saveCursor(cursor) {
+  return sb("POST", "collector_state?on_conflict=region", { region: REGION, cursor, updated_at: new Date().toISOString() }, {
+    Prefer: "resolution=merge-duplicates",
+  });
+}
+
 async function main() {
   console.log(`Collector ${REGION}: budget ${MAX_MS / 60000} min, games from last ${DAYS} days`);
   const puuids = await ladderPuuids();
@@ -168,7 +174,7 @@ async function main() {
   const startTime = Math.floor((Date.now() - DAYS * 86400_000) / 1000);
   let scanned = 0;
 
-  while (timeLeft() > 60_000 && scanned < puuids.length) {
+  while (timeLeft() > 60_000 && scanned < puuids.length * 3) {
     const puuid = puuids[cursor];
     cursor = (cursor + 1) % puuids.length;
     scanned++;
@@ -189,13 +195,12 @@ async function main() {
       pendingRows.push(...rows);
       if (pendingMatches.length >= 25) await flush();
     }
+    if (scanned % 100 === 0) await saveCursor(cursor);
     if (scanned % 25 === 0) console.log(`  ${scanned} players scanned, ${added} new games, ${riotCalls} API calls`);
   }
   await flush();
 
-  await sb("POST", "collector_state?on_conflict=region", { region: REGION, cursor, updated_at: new Date().toISOString() }, {
-    Prefer: "resolution=merge-duplicates",
-  });
+  await saveCursor(cursor);
   const cutoff = new Date(Date.now() - 14 * 86400_000).toISOString();
   await sb("DELETE", `collected_matches?played_at=lt.${encodeURIComponent(cutoff)}`);
   console.log(`Done ${REGION}: ${scanned} players, ${added} new games, ${riotCalls} API calls, ${Math.round((Date.now() - started) / 1000)}s`);

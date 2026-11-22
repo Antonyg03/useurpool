@@ -12,7 +12,7 @@ export const MATCHUP_TIER_LABELS: Record<MatchupTier, string> = {
   even: "Even",
   hard: "Hard",
   avoid: "Avoid",
-  unknown: "No data",
+  unknown: "Few games",
 };
 
 export const MATCHUP_TIER_ORDER: MatchupTier[] = ["great", "good", "even", "hard", "avoid", "unknown"];
@@ -34,8 +34,8 @@ export interface RankedMatchup {
 }
 
 export function minGamesFor(enemyGames: number): number {
-  // Adapt to how much data we have for this enemy (rare picks need lower bars).
-  return Math.max(5, Math.min(LOW_SAMPLE, Math.round(enemyGames * 0.01)));
+  // Below this a matchup gets no tier: too noisy (and filters off-role one-offs).
+  return Math.max(15, Math.min(LOW_SAMPLE, Math.round(enemyGames * 0.01)));
 }
 
 export function rankMatchups(vsEnemy: ChampAgg[], enemyGames: number): Map<string, RankedMatchup> {
