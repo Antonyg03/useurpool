@@ -71,3 +71,52 @@ export function searchChampions(list: Champion[], query: string, limit = 8): Cha
 function normalize(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
+
+// ---- Items & runes (names + icons for the matchup page) --------------------
+
+export interface NamedIcon {
+  name: string;
+  icon: string;
+}
+
+let versionP: Promise<string> | null = null;
+function latestVersion(): Promise<string> {
+  versionP ??= fetch("https://ddragon.leagueoflegends.com/api/versions.json")
+    .then((r) => r.json())
+    .then((v: string[]) => v[0]);
+  return versionP;
+}
+
+let itemsP: Promise<Map<string, NamedIcon>> | null = null;
+export function loadItems(): Promise<Map<string, NamedIcon>> {
+  itemsP ??= latestVersion().then(async (v) => {
+    const data = await fetch(`https://ddragon.leagueoflegends.com/cdn/${v}/data/en_US/item.json`).then((r) => r.json());
+    const m = new Map<string, NamedIcon>();
+    for (const [id, it] of Object.entries(data.data as Record<string, { name: string }>)) {
+      m.set(id, { name: it.name, icon: `https://ddragon.leagueoflegends.com/cdn/${v}/img/item/${id}.png` });
+    }
+    return m;
+  });
+  return itemsP;
+}
+
+let runesP: Promise<Map<string, NamedIcon>> | null = null;
+/** Keystones, runes and rune trees by id. */
+export function loadRunes(): Promise<Map<string, NamedIcon>> {
+  runesP ??= latestVersion().then(async (v) => {
+    type Rune = { id: number; name: string; icon: string };
+    type Tree = Rune & { slots: { runes: Rune[] }[] };
+    const trees: Tree[] = await fetch(
+      `https://ddragon.leagueoflegends.com/cdn/${v}/data/en_US/runesReforged.json`,
+    ).then((r) => r.json());
+    const m = new Map<string, NamedIcon>();
+    const add = (r: Rune) =>
+      m.set(String(r.id), { name: r.name, icon: `https://ddragon.leagueoflegends.com/cdn/img/${r.icon}` });
+    for (const t of trees) {
+      add(t);
+      t.slots.forEach((s) => s.runes.forEach(add));
+    }
+    return m;
+  });
+  return runesP;
+}

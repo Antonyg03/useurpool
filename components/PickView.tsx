@@ -226,6 +226,7 @@ export function PickView() {
         />
       ) : enemy ? (
         <LastPick
+          base={profilePath(region, id)}
           enemy={enemy}
           pool={pool}
           isTraining={isTraining}
@@ -405,6 +406,7 @@ function BlindPick({
 // ---------------------------------------------------------------------------
 
 function LastPick({
+  base,
   enemy,
   pool,
   isTraining,
@@ -413,6 +415,7 @@ function LastPick({
   roleGames,
   vs,
 }: {
+  base: string;
   enemy: Champion;
   pool: PoolEntry[];
   isTraining: boolean;
@@ -472,7 +475,12 @@ function LastPick({
             const own = ownVs.get(champKey(e.championId));
             const tier = m?.tier ?? "unknown";
             return (
-              <div key={e.championId} className="pick-row">
+              <Link
+                key={e.championId}
+                className="pick-row"
+                style={{ textDecoration: "none", color: "inherit" }}
+                href={`${base}/m/${e.role}/${encodeURIComponent(e.championId)}/${encodeURIComponent(enemy.id)}`}
+              >
                 <span className={`mtier mtier-${tier}`}>{MATCHUP_TIER_LABELS[tier]}</span>
                 <Portrait champ={c} tier={e.tier} small />
                 <div className="grow">
@@ -497,7 +505,8 @@ function LastPick({
                   </div>
                   {e.note && <div className="muted small note-line">{e.note}</div>}
                 </div>
-              </div>
+                <span className="muted">›</span>
+              </Link>
             );
           })}
         </div>
