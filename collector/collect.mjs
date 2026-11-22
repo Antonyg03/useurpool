@@ -2,12 +2,16 @@
 // them to the aggregated matchup tables in Supabase. Runs in GitHub Actions.
 //
 // Env: RIOT_API_KEY, SUPABASE_URL, SUPABASE_SECRET_KEY, REGION (euw1|kr),
-//      MAX_MINUTES (default 330), DAYS (default 3)
+//      MAX_MINUTES (default 330), DAYS (default 3), TIMELINE_RATE (default 0.5)
 // Optional (tests): RIOT_PLATFORM_BASE, RIOT_REGIONAL_BASE
+
+import { buildItemInfo, extractDetails } from "./details.mjs";
 
 const REGION = process.env.REGION ?? "euw1";
 const MAX_MS = Number(process.env.MAX_MINUTES ?? 330) * 60_000;
 const DAYS = Number(process.env.DAYS ?? 3);
+// Share of games for which we also fetch the timeline (gold@3, items, skills).
+const TIMELINE_RATE = Number(process.env.TIMELINE_RATE ?? 0.5);
 const RIOT_KEY = need("RIOT_API_KEY");
 const SB_URL = need("SUPABASE_URL").replace(/\/$/, "");
 const SB_KEY = need("SUPABASE_SECRET_KEY");
@@ -148,13 +152,47 @@ async function knownIds(ids) {
 
 let pendingMatches = [];
 let pendingRows = [];
+let pendingEarly = [];
+let pendingBuilds = [];
 let added = 0;
+let timelines = 0;
+let warnedOldDb = false;
 async function flush() {
   if (!pendingMatches.length) return;
-  const n = await sb("POST", "rpc/add_collected_games", { matches: pendingMatches, rows: pendingRows });
+  let n;
+  try {
+    n = await sb("POST", "rpc/add_collected_games", {
+      matches: pendingMatches,
+      rows: pendingRows,
+      early: pendingEarly,
+      builds: pendingBuilds,
+    });
+  } catch (e) {
+    // Database not upgraded to phase 4 yet (004_matchup_details.sql): keep collecting the basics.
+    if (!String(e.message).includes("PGRST202")) throw e;
+    if (!warnedOldDb) console.log("Phase 4 tables missing, run supabase/004_matchup_details.sql");
+    warnedOldDb = true;
+    n = await sb("POST", "rpc/add_collected_games", { matches: pendingMatches, rows: pendingRows });
+  }
   added += n ?? 0;
   pendingMatches = [];
   pendingRows = [];
+  pendingEarly = [];
+  pendingBuilds = [];
+}
+
+async function loadItemInfo() {
+  const ddragon = process.env.DDRAGON_BASE ?? "https://ddragon.leagueoflegends.com";
+  try {
+    const versions = await fetch(`${ddragon}/api/versions.json`).then((r) => r.json());
+    const items = await fetch(`${ddragon}/cdn/${versions[0]}/data/en_US/item.json`).then((r) => r.json());
+    const info = buildItemInfo(items);
+    console.log(`Item data ${versions[0]}: ${[...info.values()].filter((i) => i.finished).length} finished items`);
+    return info;
+  } catch (e) {
+    console.log("Could not load item data, skipping item builds", e.message);
+    return new Map();
+  }
 }
 
 function saveCursor(cursor) {
@@ -165,6 +203,7 @@ function saveCursor(cursor) {
 
 async function main() {
   console.log(`Collector ${REGION}: budget ${MAX_MS / 60000} min, games from last ${DAYS} days`);
+  const itemInfo = await loadItemInfo();
   const puuids = await ladderPuuids();
   if (!puuids.length) return;
 
@@ -191,18 +230,27 @@ async function main() {
       const m = await riot("regional", `/lol/match/v5/matches/${encodeURIComponent(id)}`);
       const rows = m && toRows(m);
       if (!rows) continue;
+      let timeline = null;
+      if (Math.random() < TIMELINE_RATE) {
+        timeline = await riot("regional", `/lol/match/v5/matches/${encodeURIComponent(id)}/timeline`);
+        if (timeline) timelines++;
+      }
+      const details = extractDetails(m, timeline, rows, itemInfo);
       pendingMatches.push({ match_id: id, region: REGION, played_at: new Date(m.info.gameCreation).toISOString() });
       pendingRows.push(...rows);
+      pendingEarly.push(...details.early);
+      pendingBuilds.push(...details.builds);
       if (pendingMatches.length >= 25) await flush();
     }
     if (scanned % 100 === 0) await saveCursor(cursor);
-    if (scanned % 25 === 0) console.log(`  ${scanned} players scanned, ${added} new games, ${riotCalls} API calls`);
+    if (scanned % 25 === 0) console.log(`  ${scanned} players scanned, ${added} new games (${timelines} timelines), ${riotCalls} API calls`);
   }
   await flush();
 
   await saveCursor(cursor);
   const cutoff = new Date(Date.now() - 14 * 86400_000).toISOString();
   await sb("DELETE", `collected_matches?played_at=lt.${encodeURIComponent(cutoff)}`);
+  await sb("POST", "rpc/prune_build_stats", { keep: 3 }).catch((e) => console.log("prune skipped:", e.message));
   console.log(`Done ${REGION}: ${scanned} players, ${added} new games, ${riotCalls} API calls, ${Math.round((Date.now() - started) / 1000)}s`);
 }
 
