@@ -1,0 +1,31 @@
+name: Pro games
+
+# Imports pro games (LCK, LPL, LEC, LCS + internationals) from Leaguepedia daily.
+# Needs repository secrets: SUPABASE_URL, SUPABASE_SECRET_KEY.
+on:
+  schedule:
+    - cron: "40 5 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Only log, don't save (1 = yes)"
+        default: "0"
+
+permissions:
+  contents: read
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Import pro games
+        run: node collector/pro.mjs
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run || '0' }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
