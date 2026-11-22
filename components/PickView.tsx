@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { loadChampions, searchChampions, type Champion } from "@/lib/ddragon";
 import { fromSlug, profilePath, regionFromUrl } from "@/lib/riotId";
@@ -227,6 +227,7 @@ export function PickView() {
       ) : enemy ? (
         <LastPick
           base={profilePath(region, id)}
+          role={role}
           enemy={enemy}
           pool={pool}
           isTraining={isTraining}
@@ -407,6 +408,7 @@ function BlindPick({
 
 function LastPick({
   base,
+  role,
   enemy,
   pool,
   isTraining,
@@ -416,6 +418,7 @@ function LastPick({
   vs,
 }: {
   base: string;
+  role: Role;
   enemy: Champion;
   pool: PoolEntry[];
   isTraining: boolean;
@@ -427,6 +430,9 @@ function LastPick({
   const [filter, setFilter] = useState("");
   const [showAll, setShowAll] = useState(false);
   const [showRare, setShowRare] = useState(false);
+  const router = useRouter();
+  const matchupHref = (cid: string) =>
+    `${base}/m/${role}/${encodeURIComponent(cid)}/${encodeURIComponent(enemy.id)}`;
   const ranked = useMemo(() => rankMatchups(vs?.vsEnemy ?? [], vs?.enemyGames ?? 0), [vs]);
 
   const vsGames = roleGames.filter(
@@ -573,12 +579,22 @@ function LastPick({
                   const c = lookup(r.agg.championId);
                   const inPool = pool.some((e) => champKey(e.championId) === champKey(r.agg.championId));
                   return (
-                    <tr key={r.agg.championId} className={inPool ? "in-pool-row" : ""}>
+                    <tr
+                      key={r.agg.championId}
+                      className={`click-row ${inPool ? "in-pool-row" : ""}`}
+                      onClick={() => router.push(matchupHref(c?.id ?? r.agg.championId))}
+                      title={`Open ${c?.name ?? r.agg.championId} vs ${enemy.name}`}
+                    >
                       <td>
-                        <div className="stat-champ">
+                        <Link
+                          href={matchupHref(c?.id ?? r.agg.championId)}
+                          className="stat-champ"
+                          style={{ textDecoration: "none", color: "inherit" }}
+                          onClick={(ev) => ev.stopPropagation()}
+                        >
                           <Portrait champ={c} small />
                           <span>{c?.name ?? r.agg.championId}</span>
-                        </div>
+                        </Link>
                       </td>
                       <td className="num muted">{enemyGames ? pctNum(r.agg.games / enemyGames, 1) : "-"}</td>
                       <td className={`num ${r.agg.games >= LOW_SAMPLE ? wrCls(r.wr) : ""}`}>{pctNum(r.wr, 1)}</td>

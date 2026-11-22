@@ -232,3 +232,5 @@ h2 { font-size: 18px; margin: 0 0 12px; }
 .skill-seq { font-weight: 700; letter-spacing: .04em; }
 .pick-row a.mlink { text-decoration: none; }
 .pick-row:hover { border-color: #33405a; }
+.click-row { cursor: pointer; }
+.click-row:hover td { background: rgba(255, 255, 255, 0.04); }
