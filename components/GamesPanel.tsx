@@ -29,8 +29,19 @@ export function GamesPanel({
     return roleGames.filter((g) => Date.parse(g.playedAt) >= since);
   }, [roleGames]);
 
+  // Season = games on the newest patch "year" (Riot game version 16.x = Season 2026).
+  const season = useMemo(() => {
+    const major = Math.max(0, ...roleGames.map((g) => Number(g.patch.split(".")[0]) || 0));
+    return { major, games: roleGames.filter((g) => (Number(g.patch.split(".")[0]) || 0) === major) };
+  }, [roleGames]);
+  const [span, setSpan] = useState<"30d" | "season">("30d");
+  const shown = span === "30d" ? recent : season.games;
+  const seasonLabel = season.major ? `Season ${2010 + season.major}` : "Season";
+
   const recentTotal = total(recent);
-  const recentByChamp = sortByGames(groupBy(recent, (g) => champKey(g.championId)));
+  const seasonTotal = total(season.games);
+  const shownTotal = span === "30d" ? recentTotal : seasonTotal;
+  const recentByChamp = sortByGames(groupBy(shown, (g) => champKey(g.championId)));
 
   const hardest = useMemo(() => hardestOpponents(roleGames), [roleGames]);
 
@@ -60,13 +71,26 @@ export function GamesPanel({
     <div className="stats-grid">
       <div className="card stat-card">
         <div className="stat-head">
-          <h3>Last 30 days</h3>
+          <div className="segmented segmented-sm">
+            <button className={span === "30d" ? "active" : ""} onClick={() => setSpan("30d")}>
+              Last 30 days
+            </button>
+            <button className={span === "season" ? "active" : ""} onClick={() => setSpan("season")}>
+              {seasonLabel}
+            </button>
+          </div>
           <span className="muted small">
-            {recentTotal.games} games · <b className={wrClass(recentTotal)}>{pct(recentTotal)}</b>
+            {shownTotal.games} games · <b className={wrClass(shownTotal)}>{pct(shownTotal)}</b>
           </span>
         </div>
+        <div className="muted small" style={{ marginBottom: 8 }}>
+          Last 30 days: {recentTotal.games} games · {pct(recentTotal)} &nbsp;|&nbsp; {seasonLabel}: {seasonTotal.games}{" "}
+          games · {pct(seasonTotal)}
+        </div>
         {recentByChamp.length === 0 ? (
-          <p className="muted small">No {ROLE_LABELS[role]} games in the last 30 days.</p>
+          <p className="muted small">
+            No {ROLE_LABELS[role]} games {span === "30d" ? "in the last 30 days" : "this season"}.
+          </p>
         ) : (
           <StatTable rows={recentByChamp} lookup={lookup} showKda />
         )}
