@@ -6,7 +6,7 @@ import Link from "next/link";
 import { loadChampions, type Champion } from "@/lib/ddragon";
 import { fromSlug, profilePath, regionFromUrl } from "@/lib/riotId";
 import { loadProfile, rememberRecent, saveLocal, saveProfile, type StorageMode } from "@/lib/store";
-import { presetFor } from "@/lib/presets";
+import { hasPreset, presetFor } from "@/lib/presets";
 import {
   PRACTICE_LABELS,
   PRACTICE_NEEDS,
@@ -252,14 +252,13 @@ export function ProfileView() {
   function loadPreset() {
     const byName = new Map(champions.map((c) => [c.name.toLowerCase(), c]));
     const entries: PoolEntry[] = [];
-    presetFor(profile!.accountType).forEach((pr, i) => {
+    presetFor(profile!.accountType, role).forEach((pr, i) => {
       const c = byName.get(pr.name.toLowerCase());
       if (!c) return;
       const { name: _n, ...rest } = pr;
       entries.push({ ...rest, championId: c.id, sortOrder: i + 1 });
     });
-    update((p) => ({ ...p, pool: [...p.pool.filter((e) => e.role !== "top"), ...entries] }));
-    setRole("top");
+    update((p) => ({ ...p, pool: [...p.pool.filter((e) => e.role !== role), ...entries] }));
   }
 
   const groups = isTraining
@@ -394,9 +393,9 @@ export function ProfileView() {
             placeholder={`Add a ${ROLE_LABELS[role]} champion…`}
           />
         </div>
-        {rolePool.length === 0 && role === "top" && champions.length > 0 && (
+        {rolePool.length === 0 && hasPreset(profile!.accountType, role) && champions.length > 0 && (
           <button className="btn" onClick={loadPreset}>
-            Load suggested Top pool
+            Load suggested {ROLE_LABELS[role]} pool
           </button>
         )}
         {!isTraining && rolePool.length > 0 && (rolePool.length < 3 || rolePool.length > 7) && (

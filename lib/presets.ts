@@ -1,4 +1,4 @@
-import type { AccountType, PoolEntry } from "./types";
+import type { AccountType, PoolEntry, Role } from "./types";
 
 // Starter pools so the owner doesn't have to click everything in by hand.
 // Matched against Data Dragon by champion *name*; unknown names are skipped.
@@ -23,6 +23,23 @@ const TRAINING_TOP: Preset[] = [
   { name: "Gnar", tier: "A", situational: false, practiceNeed: "almost_done", note: "", role: "top" },
 ];
 
-export function presetFor(type: AccountType): Preset[] {
-  return type === "main" ? MAIN_TOP : TRAINING_TOP;
+// Mid: no comfort tiers given yet, so everything starts at B (adjust on the page).
+const MAIN_MID: Preset[] = ["Diana", "Annie", "Viktor", "Orianna", "Syndra"].map((name) => ({
+  name,
+  tier: "B",
+  situational: false,
+  practiceNeed: null,
+  note: "",
+  role: "mid",
+}));
+
+/** Roles that have a suggested pool (only for the main account where noted). */
+export function hasPreset(type: AccountType, role: Role): boolean {
+  return presetFor(type, role).length > 0;
+}
+
+export function presetFor(type: AccountType, role: Role): Preset[] {
+  if (role === "top") return type === "main" ? MAIN_TOP : TRAINING_TOP;
+  if (role === "mid") return type === "main" ? MAIN_MID : [];
+  return [];
 }
