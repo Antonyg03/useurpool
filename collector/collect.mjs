@@ -2,7 +2,7 @@
 // them to the aggregated matchup tables in Supabase. Runs in GitHub Actions.
 //
 // Env: RIOT_API_KEY, SUPABASE_URL, SUPABASE_SECRET_KEY, REGION (euw1|kr),
-//      MAX_MINUTES (default 330), DAYS (default 3), TIMELINE_RATE (default 0.5)
+//      MAX_MINUTES (default 330), DAYS (default 3), TIMELINE_RATE (default 0.3)
 // Optional (tests): RIOT_PLATFORM_BASE, RIOT_REGIONAL_BASE
 
 import { buildItemInfo, extractDetails } from "./details.mjs";
@@ -11,7 +11,7 @@ const REGION = process.env.REGION ?? "euw1";
 const MAX_MS = Number(process.env.MAX_MINUTES ?? 330) * 60_000;
 const DAYS = Number(process.env.DAYS ?? 3);
 // Share of games for which we also fetch the timeline (gold@3, items, skills).
-const TIMELINE_RATE = Number(process.env.TIMELINE_RATE ?? 0.5);
+const TIMELINE_RATE = Number(process.env.TIMELINE_RATE ?? 0.3);
 const RIOT_KEY = need("RIOT_API_KEY");
 const SB_URL = need("SUPABASE_URL").replace(/\/$/, "");
 const SB_KEY = need("SUPABASE_SECRET_KEY");
@@ -59,8 +59,8 @@ class Limiter {
   }
 }
 const limiters = {
-  platform: new Limiter([[15, 1000], [85, 120_000]]),
-  regional: new Limiter([[15, 1000], [85, 120_000]]),
+  platform: new Limiter([[15, 1000], [92, 120_000]]),
+  regional: new Limiter([[15, 1000], [92, 120_000]]),
 };
 
 let riotCalls = 0;

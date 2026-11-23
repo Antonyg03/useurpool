@@ -2,8 +2,9 @@ name: Collector
 
 # Samples Master+ Ranked Solo games (EUW + KR) into Supabase.
 # Needs repository secrets: RIOT_API_KEY, SUPABASE_URL, SUPABASE_SECRET_KEY.
-# GitHub often skips scheduled runs, so each run collects for ~5.5 hours and a
-# new one is queued every hour: whenever one ends, the next starts.
+# Each run collects for ~5.5 hours and then starts the next run itself, so
+# collection never pauses. The hourly schedule is only a backup in case the
+# chain breaks (GitHub often skips scheduled runs).
 on:
   schedule:
     - cron: "17 * * * *"
@@ -15,6 +16,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 jobs:
   collect:
@@ -40,3 +42,14 @@ jobs:
           RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+
+  next:
+    # Start the next run right away (workflow_dispatch from GITHUB_TOKEN is allowed).
+    needs: collect
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start next collector run
+        run: gh workflow run collector.yml --repo "$GITHUB_REPOSITORY" --ref main
+        env:
+          GH_TOKEN: ${{ github.token }}
