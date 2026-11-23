@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import type { Champion } from "@/lib/ddragon";
 import type { PlayerGame } from "@/lib/games";
 import { counted, groupBy, hardestOpponents, kda, pct, total, champKey, type WinStat } from "@/lib/gameStats";
-import { ROLE_LABELS, type Role } from "@/lib/types";
+import { ROLES, ROLE_LABELS, type Role } from "@/lib/types";
 import { ChampionSearch } from "./ChampionSearch";
 import { Portrait } from "./Portrait";
 
@@ -15,8 +15,10 @@ export function GamesPanel({
   games,
   champions,
   lookup,
+  onRole,
 }: {
   role: Role;
+  onRole?: (r: Role) => void;
   games: PlayerGame[];
   champions: Champion[];
   lookup: (id: string) => Champion | undefined;
@@ -30,10 +32,22 @@ export function GamesPanel({
   }, [roleGames]);
 
   // Season = games on the newest patch "year" (Riot game version 16.x = Season 2026).
-  const season = useMemo(() => {
-    const major = Math.max(0, ...roleGames.map((g) => Number(g.patch.split(".")[0]) || 0));
-    return { major, games: roleGames.filter((g) => (Number(g.patch.split(".")[0]) || 0) === major) };
-  }, [roleGames]);
+  const major = useMemo(
+    () => Math.max(0, ...games.map((g) => Number(g.patch.split(".")[0]) || 0)),
+    [games],
+  );
+  const season = useMemo(
+    () => ({ major, games: roleGames.filter((g) => (Number(g.patch.split(".")[0]) || 0) === major) }),
+    [roleGames, major],
+  );
+  // Season games in the other roles, so games on e.g. Jungle are easy to find.
+  const otherRoles = useMemo(() => {
+    const all = counted(games).filter((g) => (Number(g.patch.split(".")[0]) || 0) === major);
+    return ROLES.filter((r) => r !== role)
+      .map((r) => ({ role: r, n: all.filter((g) => g.role === r).length }))
+      .filter((x) => x.n > 0)
+      .sort((a, b) => b.n - a.n);
+  }, [games, major, role]);
   const [span, setSpan] = useState<"30d" | "season">("30d");
   const shown = span === "30d" ? recent : season.games;
   const seasonLabel = season.major ? `Season ${2010 + season.major}` : "Season";
@@ -59,15 +73,38 @@ export function GamesPanel({
     ? total(roleGames.filter((g) => g.opponentChampionId && champKey(g.opponentChampionId) === champKey(enemy.id)))
     : null;
 
+  const otherLine = otherRoles.length > 0 && (
+    <div className="muted small" style={{ marginBottom: 10 }}>
+      This season in other roles:{" "}
+      {otherRoles.map((x, i) => (
+        <span key={x.role}>
+          {i > 0 && " · "}
+          {onRole ? (
+            <button className="linklike" onClick={() => onRole(x.role)}>
+              {ROLE_LABELS[x.role]} {x.n} games
+            </button>
+          ) : (
+            `${ROLE_LABELS[x.role]} ${x.n} games`
+          )}
+        </span>
+      ))}
+    </div>
+  );
+
   if (roleGames.length === 0) {
     return (
-      <p className="muted small" style={{ marginTop: 0 }}>
-        No ranked {ROLE_LABELS[role]} games imported yet.
-      </p>
+      <div>
+        <p className="muted small" style={{ marginTop: 0 }}>
+          No ranked {ROLE_LABELS[role]} games imported yet.
+        </p>
+        {otherLine}
+      </div>
     );
   }
 
   return (
+    <>
+    {otherLine}
     <div className="stats-grid">
       <div className="card stat-card">
         <div className="stat-head">
@@ -142,6 +179,7 @@ export function GamesPanel({
         )}
       </div>
     </div>
+    </>
   );
 }
 

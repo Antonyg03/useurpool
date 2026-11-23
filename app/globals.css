@@ -258,3 +258,4 @@ h2 { font-size: 18px; margin: 0 0 12px; }
   .tier-stats { flex: none; border-left: 0; border-top: 1px solid var(--border); padding: 10px 0 0; width: 100%; }
 }
 .segmented-sm button { padding: 4px 10px; font-size: 13px; }
+.linklike { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font: inherit; text-decoration: underline; }

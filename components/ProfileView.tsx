@@ -414,7 +414,16 @@ export function ProfileView() {
             {importError && <span className="error">{importError}</span>}
           </div>
           {games.length > 0 && (
-            <GamesPanel role={role} games={games} champions={champions} lookup={lookup} />
+            <GamesPanel
+              role={role}
+              games={games}
+              champions={champions}
+              lookup={lookup}
+              onRole={(r) => {
+                setRole(r);
+                saveRole(r);
+              }}
+            />
           )}
         </>
       )}
