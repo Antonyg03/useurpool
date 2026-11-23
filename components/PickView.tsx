@@ -1,5 +1,6 @@
 "use client";
 
+import { initialRole, saveRole } from "@/lib/rolePref";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -69,8 +70,7 @@ export function PickView() {
     loadProfile(id.gameName, id.tagLine, region).then(({ profile: p }) => {
       if (!p) return setProfile({ gameName: id.gameName, tagLine: id.tagLine, region, accountType: "main", pool: [] });
       setProfile(p);
-      const roles = ROLES.filter((r) => p.pool.some((e) => e.role === r));
-      if (roles.length && !roles.includes("top")) setRole(roles[0]);
+      setRole(initialRole(ROLES.filter((r) => p.pool.some((e) => e.role === r)), true));
     });
     fetchGames(id.gameName, id.tagLine, region)
       .then((g) => setGames(g.games))
@@ -162,6 +162,7 @@ export function PickView() {
             className={role === r ? "active" : ""}
             onClick={() => {
               setRole(r);
+              saveRole(r);
               setEnemy(null);
               setBlindPick(null);
             }}

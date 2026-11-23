@@ -7,6 +7,8 @@ import { loadChampions, type Champion } from "@/lib/ddragon";
 import { fromSlug, profilePath, regionFromUrl } from "@/lib/riotId";
 import { loadProfile, rememberRecent, saveLocal, saveProfile, type StorageMode } from "@/lib/store";
 import { hasPreset, presetFor } from "@/lib/presets";
+import { initialRole, saveRole } from "@/lib/rolePref";
+import { fetchChampStats } from "@/lib/champStatsClient";
 import {
   PRACTICE_LABELS,
   PRACTICE_NEEDS,
@@ -55,6 +57,41 @@ export function ProfileView() {
   const [champError, setChampError] = useState(false);
   const [role, setRole] = useState<Role>("top");
   const [saveState, setSaveState] = useState<SaveState>("idle");
+  // Overall Master+ win/pick rate per champion in the current role (not personal).
+  const [overall, setOverall] = useState<Map<string, { wr: number; pr: number; games: number }> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setOverall(null);
+    let statRegion = "all";
+    try {
+      const r = localStorage.getItem("uup:statRegion");
+      if (r === "euw1" || r === "kr") statRegion = r;
+    } catch {}
+    fetchChampStats(role, statRegion)
+      .then(({ rows }) => {
+        if (cancelled) return;
+        const per = new Map<string, { games: number; wins: number }>();
+        let total = 0;
+        for (const x of rows) {
+          const c = per.get(x.championId) ?? { games: 0, wins: 0 };
+          c.games += x.games;
+          c.wins += x.wins;
+          per.set(x.championId, c);
+          total += x.games;
+        }
+        // Two champions per role per game, so games in the role = total / 2.
+        const roleGames = total / 2;
+        const out = new Map<string, { wr: number; pr: number; games: number }>();
+        for (const [k, v] of per)
+          out.set(k, { wr: v.games ? v.wins / v.games : 0, pr: roleGames ? v.games / roleGames : 0, games: v.games });
+        setOverall(out);
+      })
+      .catch(() => !cancelled && setOverall(new Map()));
+    return () => {
+      cancelled = true;
+    };
+  }, [role]);
   const dirty = useRef(false);
   const pending = useRef<Profile | null>(null);
 
@@ -146,8 +183,7 @@ export function ProfileView() {
         };
         setProfile(prof);
         rememberRecent(prof);
-        const firstRole = prof.pool[0]?.role;
-        if (firstRole && !prof.pool.some((e) => e.role === "top")) setRole(firstRole);
+        setRole(initialRole(ROLES.filter((r) => prof.pool.some((e) => e.role === r))));
       })
       .catch(() => !cancelled && setLoadError("Could not load this account."));
     return () => {
@@ -339,7 +375,10 @@ export function ProfileView() {
         {ROLES.map((r) => {
           const n = profile.pool.filter((e) => e.role === r).length;
           return (
-            <button key={r} className={role === r ? "active" : ""} onClick={() => setRole(r)}>
+            <button key={r} className={role === r ? "active" : ""} onClick={() => {
+              setRole(r);
+              saveRole(r);
+            }}>
               {ROLE_LABELS[r]}
               {n > 0 && <span className="count">{n}</span>}
             </button>
@@ -418,6 +457,7 @@ export function ProfileView() {
             {g.entries.length === 0 ? (
               <div className="empty-slot">—</div>
             ) : (
+              <div className="tier-body">
               <div className="grid">
                 {g.entries.map((e) => (
                   <PoolCard
@@ -430,6 +470,30 @@ export function ProfileView() {
                     onRemove={() => removeEntry(e.championId)}
                   />
                 ))}
+              </div>
+              {overall && overall.size > 0 && (
+                <div className="tier-stats" title="Master+ Solo Queue, all players, newest 3 patches">
+                  <div className="tier-stats-head">Overall</div>
+                  {g.entries.map((e) => {
+                    const o = overall.get(e.championId);
+                    return (
+                      <div key={e.championId} className="tier-stats-row">
+                        <span className="tier-stats-name">{champById.get(e.championId)?.name ?? e.championId}</span>
+                        {o && o.games > 0 ? (
+                          <span>
+                            <b className={o.wr >= 0.515 ? "wr-good" : o.wr <= 0.485 ? "wr-bad" : ""}>
+                              {(o.wr * 100).toFixed(1)}% WR
+                            </b>{" "}
+                            <span className="muted">{(o.pr * 100).toFixed(1)}% PR</span>
+                          </span>
+                        ) : (
+                          <span className="muted">no games</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               </div>
             )}
           </div>

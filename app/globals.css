@@ -245,3 +245,15 @@ h2 { font-size: 18px; margin: 0 0 12px; }
 .tier-champs { display: flex; flex-wrap: wrap; gap: 8px; }
 .tier-champ { display: flex; flex-direction: column; align-items: center; width: 64px; font-size: 11px; text-align: center; }
 .tier-champ.mine .portrait { box-shadow: 0 0 0 2px var(--accent); }
+
+/* Pool page: overall Master+ win/pick rate beside each comfort tier */
+.tier-body { display: flex; gap: 16px; align-items: flex-start; }
+.tier-body > .grid { flex: 1; min-width: 0; }
+.tier-stats { flex: 0 0 210px; border-left: 1px solid var(--border); padding-left: 14px; font-size: 12px; display: flex; flex-direction: column; gap: 6px; }
+.tier-stats-head { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.tier-stats-row { display: flex; flex-direction: column; line-height: 1.3; }
+.tier-stats-name { color: var(--text, #e5e7eb); font-weight: 600; }
+@media (max-width: 700px) {
+  .tier-body { flex-direction: column; }
+  .tier-stats { flex: none; border-left: 0; border-top: 1px solid var(--border); padding: 10px 0 0; width: 100%; }
+}

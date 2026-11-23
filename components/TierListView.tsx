@@ -1,5 +1,6 @@
 "use client";
 
+import { savedRole, saveRole } from "@/lib/rolePref";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -27,6 +28,8 @@ export function TierListView() {
 
   useEffect(() => {
     loadChampions().then(setChampions).catch(() => {});
+    const saved = savedRole();
+    if (saved) setRole(saved);
     if (region && id) loadProfile(id.gameName, id.tagLine, region).then(({ profile: p }) => setProfile(p));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -73,7 +76,10 @@ export function TierListView() {
       </div>
       <div className="tabs">
         {ROLES.map((r) => (
-          <button key={r} className={role === r ? "active" : ""} onClick={() => setRole(r)}>
+          <button key={r} className={role === r ? "active" : ""} onClick={() => {
+              setRole(r);
+              saveRole(r);
+            }}>
             {ROLE_LABELS[r]}
           </button>
         ))}
