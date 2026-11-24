@@ -63,13 +63,29 @@ const limiters = {
   regional: new Limiter([[15, 1000], [92, 120_000]]),
 };
 
+// fetch with retries on network errors (connection reset, DNS hiccup, timeout).
+// A single dropped connection must not end a 5-hour run. Supabase writes are safe
+// to repeat: add_collected_games skips matches it already has.
+async function fetchRetry(url, opts, label) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fetch(url, { ...opts, signal: AbortSignal.timeout(60_000) });
+    } catch (e) {
+      if (attempt >= 6) throw e;
+      const wait = Math.min(60, 5 * 2 ** (attempt - 1));
+      console.log(`  network error on ${label} (${e.cause?.code ?? e.name}), retry ${attempt} in ${wait}s`);
+      await sleep(wait * 1000);
+    }
+  }
+}
+
 let riotCalls = 0;
 async function riot(kind, path) {
   const base = kind === "platform" ? PLATFORM : REGIONAL;
   for (let attempt = 0; attempt < 5; attempt++) {
     await limiters[kind].take();
     riotCalls++;
-    const res = await fetch(base + path, { headers: { "X-Riot-Token": RIOT_KEY } });
+    const res = await fetchRetry(base + path, { headers: { "X-Riot-Token": RIOT_KEY } }, path.split("?")[0]);
     if (res.ok) return res.json();
     if (res.status === 429 || res.status >= 500) {
       const ra = Number(res.headers.get("retry-after") ?? 5);
@@ -86,7 +102,7 @@ async function riot(kind, path) {
 
 // ---- Supabase (PostgREST) --------------------------------------------------
 async function sb(method, path, body, headers = {}) {
-  const res = await fetch(`${SB_URL}/rest/v1/${path}`, {
+  const res = await fetchRetry(`${SB_URL}/rest/v1/${path}`, {
     method,
     headers: {
       apikey: SB_KEY,
@@ -95,7 +111,7 @@ async function sb(method, path, body, headers = {}) {
       ...headers,
     },
     body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  }, `supabase ${path.split("?")[0]}`);
   const text = await res.text();
   if (!res.ok) throw new Error(`Supabase ${method} ${path.split("?")[0]}: ${res.status} ${text}`);
   return text ? JSON.parse(text) : null;
@@ -339,5 +355,13 @@ main().catch(async (e) => {
   try {
     await flush();
   } catch {}
+  // After a long, productive run an unexpected error (e.g. Riot dropping the
+  // connection for minutes) should not stop the chain of runs: exit 0 so the
+  // next run is queued. Early failures (bad key, bad config) still fail loudly.
+  const minutes = (Date.now() - started) / 60_000;
+  if (minutes >= 30 && added > 0) {
+    console.log(`Stopped early after ${Math.round(minutes)} min with ${added} new games saved; next run continues.`);
+    process.exit(0);
+  }
   process.exit(1);
 });
